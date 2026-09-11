@@ -39,9 +39,12 @@
             const [lastSyncTime, setLastSyncTime] = useState(null);
             const [offlineWarning, setOfflineWarning] = useState('');
             const [modal, setModal] = useState(null);
+            const [showNameSearch, setShowNameSearch] = useState(false);
+            const [nameSearchQuery, setNameSearchQuery] = useState('');
 
             const barcodeInputRef = useRef(null);
             const quantityInputRef = useRef(null);
+            const nameSearchInputRef = useRef(null);
             const videoRef = useRef(null);
             const streamRef = useRef(null);
             const codeReaderRef = useRef(null);
@@ -59,7 +62,7 @@
                 if (window.lucide) {
                     window.lucide.createIcons();
                 }
-            }, [page, scannedItems, modal, currentProduct, error]);
+            }, [page, scannedItems, modal, currentProduct, error, showNameSearch]);
 
             useEffect(() => {
                 const savedScans = localStorage.getItem('stocktake_scans');
@@ -409,6 +412,24 @@
                 item.code.includes(searchTerm)
             );
 
+            const filteredProducts = useMemo(() => {
+                if (!nameSearchQuery.trim()) return [];
+                const query = nameSearchQuery.toLowerCase();
+                return products
+                    .filter(product => product.description.toLowerCase().includes(query))
+                    .slice(0, 50);
+            }, [nameSearchQuery, products]);
+
+            const handleSelectSearchedProduct = (code) => {
+                setBarcode(code);
+                setShowNameSearch(false);
+                setNameSearchQuery('');
+                setTimeout(() => {
+                    if (quantityInputRef.current) quantityInputRef.current.focus();
+                }, 100);
+                handleBarcodeSubmit(code);
+            };
+
             if (loading) {
                 return (
                     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -530,6 +551,17 @@
                                         />
                                         <button onClick={() => handleBarcodeSubmit()} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700" aria-label="Search barcode">
                                             <i data-lucide="search" className="w-6 h-6"></i>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowNameSearch(true);
+                                                setTimeout(() => nameSearchInputRef.current?.focus(), 100);
+                                            }}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
+                                            title="Search by Product Name"
+                                        >
+                                            <i data-lucide="search" className="w-5 h-5"></i>
+                                            <span className="hidden sm:inline">Find Item</span>
                                         </button>
                                     </div>
 
@@ -735,6 +767,54 @@
                                         <button onClick={() => setModal(null)} className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">OK</button>
                                     </>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {showNameSearch && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+                                <div className="p-4 border-b flex justify-between items-center">
+                                    <h3 className="text-lg font-bold">Search by Name</h3>
+                                    <button
+                                        onClick={() => {
+                                            setShowNameSearch(false);
+                                            setNameSearchQuery('');
+                                        }}
+                                        className="text-gray-500 hover:text-gray-800"
+                                        aria-label="Close name search"
+                                    >
+                                        <i data-lucide="x" className="w-6 h-6"></i>
+                                    </button>
+                                </div>
+                                <div className="p-4 border-b">
+                                    <input
+                                        type="text"
+                                        ref={nameSearchInputRef}
+                                        value={nameSearchQuery}
+                                        onChange={(e) => setNameSearchQuery(e.target.value)}
+                                        placeholder="e.g. sasko cake flour"
+                                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-2">
+                                    {nameSearchQuery && filteredProducts.length === 0 && (
+                                        <p className="text-center text-gray-500 p-4">No products found.</p>
+                                    )}
+                                    {filteredProducts.map((product, index) => (
+                                        <button
+                                            key={`${product.code}-${index}`}
+                                            onClick={() => handleSelectSearchedProduct(product.code)}
+                                            className="w-full text-left p-3 hover:bg-blue-50 rounded-lg border-b last:border-b-0 flex justify-between items-center"
+                                        >
+                                            <div>
+                                                <p className="font-semibold text-gray-800">{product.description}</p>
+                                                <p className="text-sm text-gray-500">Pack: {product.packSize}</p>
+                                            </div>
+                                            <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">{product.code}</span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
