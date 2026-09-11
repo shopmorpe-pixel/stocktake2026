@@ -454,14 +454,14 @@
                     </div>
 
                     <div className="bg-white border-b sticky top-0 z-10">
-                        <div className="flex">
-                            <button onClick={() => setPage('setup')} className={`flex-1 p-4 flex items-center justify-center gap-2 ${page === 'setup' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
+                        <div className="grid grid-cols-3">
+                            <button onClick={() => setPage('setup')} className={`min-w-0 px-1 py-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base whitespace-nowrap ${page === 'setup' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
                                 <i data-lucide="upload" className="w-5 h-5"></i> Setup
                             </button>
-                            <button onClick={() => setPage('scan')} className={`flex-1 p-4 flex items-center justify-center gap-2 ${page === 'scan' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
+                            <button onClick={() => setPage('scan')} className={`min-w-0 px-1 py-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base whitespace-nowrap ${page === 'scan' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
                                 <i data-lucide="search" className="w-5 h-5"></i> Scan
                             </button>
-                            <button onClick={() => setPage('history')} className={`flex-1 p-4 flex items-center justify-center gap-2 ${page === 'history' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
+                            <button onClick={() => setPage('history')} className={`min-w-0 px-1 py-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base whitespace-nowrap ${page === 'history' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
                                 <i data-lucide="history" className="w-5 h-5"></i> History ({scannedItems.length})
                             </button>
                         </div>
@@ -538,7 +538,7 @@
                             <div className="max-w-2xl mx-auto space-y-4">
                                 <div className="bg-white rounded-lg shadow p-6">
                                     <label className="block text-sm font-semibold mb-2">Barcode / Product Code</label>
-                                    <div className="flex gap-2 mb-3">
+                                    <div className="flex flex-wrap gap-2 mb-3">
                                         <input
                                             ref={barcodeInputRef}
                                             type="text"
@@ -546,10 +546,10 @@
                                             onChange={(e) => setBarcode(e.target.value)}
                                             onKeyPress={(e) => e.key === 'Enter' && handleBarcodeSubmit()}
                                             placeholder="Scan or enter barcode"
-                                            className="flex-1 p-3 border-2 border-gray-300 rounded-lg text-lg font-mono"
+                                            className="min-w-0 w-full sm:flex-1 p-3 border-2 border-gray-300 rounded-lg text-lg font-mono"
                                             autoFocus
                                         />
-                                        <button onClick={() => handleBarcodeSubmit()} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700" aria-label="Search barcode">
+                                        <button onClick={() => handleBarcodeSubmit()} className="flex-1 sm:flex-none px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700" aria-label="Search barcode">
                                             <i data-lucide="search" className="w-6 h-6"></i>
                                         </button>
                                         <button
@@ -557,7 +557,7 @@
                                                 setShowNameSearch(true);
                                                 setTimeout(() => nameSearchInputRef.current?.focus(), 100);
                                             }}
-                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
+                                            className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700"
                                             title="Search by Product Name"
                                         >
                                             <i data-lucide="search" className="w-5 h-5"></i>
@@ -667,16 +667,16 @@
                                 <div className="space-y-2">
                                     {filteredItems.map(item => (
                                         <div key={item.id} className="bg-white rounded-lg shadow p-4">
-                                            <div className="flex items-start gap-3">
+                                            <div className="flex flex-col sm:flex-row items-start gap-3">
                                                 <div className="flex-1">
                                                     <div className="font-mono text-xs text-gray-500 mb-1">{item.code}</div>
                                                     <div className="font-semibold mb-1">{item.description}</div>
                                                     <div className="text-sm text-gray-600">Pack Size: {item.packSize} • {item.timestamp}</div>
                                                 </div>
 
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex flex-wrap items-center justify-end gap-2">
                                                     {editingId === item.id ? (
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex flex-wrap items-center justify-end gap-2">
                                                             <input
                                                                 type="number"
                                                                 value={editQuantity}
