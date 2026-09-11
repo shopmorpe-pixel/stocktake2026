@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Take Scanner</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        const CLOUD_CSV_URL = 'https://gist.githubusercontent.com/shopmorpe-pixel/12efae033e5246fed3ab8a404778b327/raw/dd6e2bedd37f099441d17d00c0d8c5d7d6cc3ce1/update2026';
+
+        const normalizeCode = (code) => (code || '').replace(/^0/, '');
+
+        function StockTakeApp() {
+            const [page, setPage] = useState('setup');
+            const [products, setProducts] = useState([]);
+            const [scannedItems, setScannedItems] = useState([]);
+            const [barcode, setBarcode] = useState('');
+            const [quantity, setQuantity] = useState('');
+            const [currentProduct, setCurrentProduct] = useState(null);
+            const [editingId, setEditingId] = useState(null);
+            const [editQuantity, setEditQuantity] = useState('');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [error, setError] = useState('');
+            const [scanning, setScanning] = useState(false);
+            const [loading, setLoading] = useState(true);
+            const [loadingMessage, setLoadingMessage] = useState('Loading products from cloud...');
+            const [lastSyncTime, setLastSyncTime] = useState(null);
+            const [offlineWarning, setOfflineWarning] = useState('');
+            const [modal, setModal] = useState(null);
+
+            const barcodeInputRef = useRef(null);
+            const quantityInputRef = useRef(null);
+            const videoRef = useRef(null);
+            const streamRef = useRef(null);
+            const codeReaderRef = useRef(null);
+            const lastScanRef = useRef({ code: '', time: 0 });
+
+            const productMap = useMemo(() => {
+                const map = new Map();
+                products.forEach((p) => {
+                    map.set(normalizeCode(p.code), p);
+                });
+                return map;
+            }, [products]);
+
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [page, scannedItems, modal, currentProduct, error]);
+
+            useEffect(() => {
+                const savedScans = localStorage.getItem('stocktake_scans');
+                if (savedScans) setScannedItems(JSON.parse(savedScans));
+
+                const savedProducts = localStorage.getItem('stocktake_products');
+                const lastUpdate = localStorage.getItem('stocktake_last_update');
+                const now = new Date().getTime();
+                const oneHour = 60 * 60 * 1000;
+
+                if (lastUpdate) setLastSyncTime(new Date(parseInt(lastUpdate)));
+
+                if (!navigator.onLine) {
+                    if (savedProducts) {
+                        setProducts(JSON.parse(savedProducts));
+                        setLoading(false);
+                        setPage('scan');
+                        setOfflineWarning('You are offline — using cached product data, which may be out of date.');
+                    } else {
+                        setLoading(false);
+                        setError('You are offline and no product data is cached on this device yet.');
+                    }
+                } else if (savedProducts && lastUpdate && (now - parseInt(lastUpdate)) < oneHour) {
+                    setProducts(JSON.parse(savedProducts));
+                    setLoading(false);
+                    setPage('scan');
+                } else {
+                    loadProductsFromCloud();
+                }
+            }, []);
+
+            useEffect(() => {
+                return () => stopCamera();
+            }, []);
+
+            useEffect(() => {
+                if (currentProduct && quantityInputRef.current) {
+                    quantityInputRef.current.focus();
+                }
+            }, [currentProduct]);
+
+            const processCSV = (text, callback) => {
+                let skipped = 0;
+                const data = [];
+
+                Papa.parse(text, {
+                    skipEmptyLines: true,
+                    step: (results) => {
+                        const row = results.data;
+                        if (row.length >= 3) {
+                            data.push({
+                                code: String(row[0]).trim(),
+                                packSize: String(row[1]).trim(),
+                                description: row.slice(2).join(',').trim()
+                            });
+                        } else {
+                            skipped++;
+                        }
+                    },
+                    complete: () => {
+                        callback(data, skipped);
+                    }
+                });
+            };
+
+            const loadProductsFromCloud = async () => {
+                if (!navigator.onLine) {
+                    const savedProducts = localStorage.getItem('stocktake_products');
+                    if (savedProducts) {
+                        setProducts(JSON.parse(savedProducts));
+                        setLoading(false);
+                        setPage('scan');
+                        setOfflineWarning('You are offline — using cached product data, which may be out of date.');
+                    } else {
+                        setLoading(false);
+                        setError('You are offline and no product data is cached on this device yet.');
+                    }
+                    return;
+                }
+
+                try {
+                    setLoading(true);
+                    setLoadingMessage('Downloading product database...');
+
+                    const response = await fetch(CLOUD_CSV_URL);
+                    if (!response.ok) throw new Error('Failed to download CSV');
+
+                    const text = await response.text();
+
+                    processCSV(text, (data, skipped) => {
+                        if (data.length === 0) {
+                            setLoading(false);
+                            setError('No valid products found in CSV.');
+                            return;
+                        }
+                        setProducts(data);
+                        localStorage.setItem('stocktake_products', JSON.stringify(data));
+                        localStorage.setItem('stocktake_last_update', new Date().getTime().toString());
+                        setLastSyncTime(new Date());
+                        setOfflineWarning('');
+                        setLoading(false);
+                        setPage('scan');
+
+                        if (skipped > 0) {
+                            setError(`${skipped} malformed rows were skipped during import.`);
+                        } else {
+                            setLoadingMessage(`Successfully loaded ${data.length} products!`);
+                            setTimeout(() => setLoadingMessage(''), 3000);
+                        }
+                    });
+                } catch (err) {
+                    setLoading(false);
+                    setError('Failed to load products from cloud. Please check your internet connection or reload manually.');
+                    console.error('Error loading products:', err);
+                }
+            };
+
+            const handleManualUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const text = event.target.result;
+                        processCSV(text, (data, skipped) => {
+                            if (data.length === 0) {
+                                setModal({ type: 'alert', message: 'No valid product data found in CSV' });
+                                return;
+                            }
+                            setProducts(data);
+                            localStorage.setItem('stocktake_products', JSON.stringify(data));
+                            localStorage.setItem('stocktake_last_update', new Date().getTime().toString());
+                            setLastSyncTime(new Date());
+                            setOfflineWarning('');
+                            setError('');
+                            setModal({
+                                type: 'alert',
+                                message: `Successfully loaded ${data.length} products!${skipped > 0 ? ` (${skipped} rows skipped)` : ''}`
+                            });
+                            setPage('scan');
+                        });
+                    } catch (err) {
+                        setError('Error parsing CSV file. Please check the format.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            const startCamera = async () => {
+                try {
+                    setScanning(true);
+                    setError('');
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = stream;
+                        streamRef.current = stream;
+                        await videoRef.current.play();
+
+                        const codeReader = new ZXing.BrowserMultiFormatReader();
+                        codeReaderRef.current = codeReader;
+
+                        codeReader.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
+                            if (result) {
+                                const scannedCode = result.getText();
+                                const now = Date.now();
+                                if (scannedCode === lastScanRef.current.code && (now - lastScanRef.current.time) < 1500) {
+                                    return;
+                                }
+                                lastScanRef.current = { code: scannedCode, time: now };
+                                setBarcode(scannedCode);
+                                stopCamera();
+                                handleBarcodeSubmit(scannedCode);
+                            }
+                        });
+                    }
+                } catch (err) {
+                    setError('Camera access denied. Please enable camera permissions or enter barcode manually.');
+                    setScanning(false);
+                }
+            };
+
+            const stopCamera = () => {
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
+                if (codeReaderRef.current) {
+                    codeReaderRef.current.reset();
+                }
+                setScanning(false);
+            };
+
+            const playBeep = () => {
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    const audioCtx = new AudioCtx();
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.type = 'sine';
+                    oscillator.frequency.value = 1000;
+                    gainNode.gain.value = 0.2;
+                    oscillator.start();
+                    oscillator.stop(audioCtx.currentTime + 0.15);
+                } catch (e) {
+                    // Audio unavailable/blocked
+                }
+            };
+
+            const handleBarcodeSubmit = (code = null) => {
+                let barcodeToSearch = code !== null ? String(code).trim() : barcode.trim();
+                barcodeToSearch = normalizeCode(barcodeToSearch);
+
+                if (!barcodeToSearch) {
+                    setError('Please enter a barcode');
+                    return;
+                }
+
+                const product = productMap.get(barcodeToSearch);
+
+                if (!product) {
+                    setError(`Product not found: ${barcodeToSearch}`);
+                    setCurrentProduct(null);
+                    return;
+                }
+
+                setCurrentProduct(product);
+                setBarcode(barcodeToSearch);
+                setError('');
+
+                if (navigator.vibrate) navigator.vibrate(100);
+                playBeep();
+
+                const existing = scannedItems.find(item => item.code === barcodeToSearch);
+                if (existing) {
+                    setError(`Warning: ${product.description} already counted (${existing.quantity} units)`);
+                }
+            };
+
+            const handleAddCount = () => {
+                if (!currentProduct) {
+                    setError('Please scan a product first');
+                    return;
+                }
+
+                const qty = parseInt(quantity);
+                if (!quantity || isNaN(qty) || qty <= 0) {
+                    setError('Please enter a valid quantity');
+                    return;
+                }
+
+                if (qty > 9999) {
+                    if (!confirm(`Are you sure the quantity is ${qty}? This seems unusually high.`)) {
+                        return;
+                    }
+                }
+
+                const newItem = {
+                    id: Date.now(),
+                    code: barcode,
+                    description: currentProduct.description,
+                    packSize: currentProduct.packSize,
+                    quantity: qty,
+                    timestamp: new Date().toLocaleTimeString()
+                };
+
+                const updated = [newItem, ...scannedItems];
+                setScannedItems(updated);
+                localStorage.setItem('stocktake_scans', JSON.stringify(updated));
+
+                setBarcode('');
+                setQuantity('');
+                setCurrentProduct(null);
+                setError('');
+
+                if (barcodeInputRef.current) barcodeInputRef.current.focus();
+            };
+
+            const handleEdit = (id, newQty) => {
+                const qty = parseInt(newQty);
+                if (isNaN(qty) || qty <= 0) return;
+
+                const updated = scannedItems.map(item =>
+                    item.id === id ? { ...item, quantity: qty } : item
+                );
+                setScannedItems(updated);
+                localStorage.setItem('stocktake_scans', JSON.stringify(updated));
+                setEditingId(null);
+            };
+
+            const triggerDelete = (id) => setModal({ type: 'delete', id });
+
+            const confirmDelete = () => {
+                if (modal && modal.id) {
+                    const updated = scannedItems.filter(item => item.id !== modal.id);
+                    setScannedItems(updated);
+                    localStorage.setItem('stocktake_scans', JSON.stringify(updated));
+                    setModal(null);
+                }
+            };
+
+            const triggerExport = () => {
+                if (scannedItems.length === 0) {
+                    setModal({ type: 'alert', message: 'No items to export' });
+                    return;
+                }
+                setModal({ type: 'export' });
+            };
+
+            const confirmExport = () => {
+                const text = scannedItems.map(item => `${item.code},${item.quantity}`).join('\n');
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `stocktake_${new Date().toISOString().split('T')[0]}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+                setModal(null);
+            };
+
+            const triggerClearAll = () => {
+                if (scannedItems.length > 0) {
+                    const text = scannedItems.map(item => `${item.code},${item.quantity}`).join('\n');
+                    const blob = new Blob([text], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `stocktake_backup_${new Date().toISOString().split('T')[0]}.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+                setModal({ type: 'clear' });
+            };
+
+            const confirmClearAll = () => {
+                setScannedItems([]);
+                localStorage.removeItem('stocktake_scans');
+                setModal(null);
+            };
+
+            const filteredItems = scannedItems.filter(item =>
+                item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.code.includes(searchTerm)
+            );
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="mb-4">
+                                <i data-lucide="loader" className="w-16 h-16 text-blue-600 mx-auto animate-spin"></i>
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">Stock Take Scanner</h2>
+                            <p className="text-gray-600">{loadingMessage}</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <div className="bg-blue-600 text-white p-4 shadow-lg">
+                        <h1 className="text-2xl font-bold">Stock Take Scanner</h1>
+                        <p className="text-sm text-blue-100">
+                            {products.length} products loaded | {scannedItems.length} items counted
+                        </p>
+                    </div>
+
+                    <div className="bg-white border-b sticky top-0 z-10">
+                        <div className="flex">
+                            <button onClick={() => setPage('setup')} className={`flex-1 p-4 flex items-center justify-center gap-2 ${page === 'setup' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
+                                <i data-lucide="upload" className="w-5 h-5"></i> Setup
+                            </button>
+                            <button onClick={() => setPage('scan')} className={`flex-1 p-4 flex items-center justify-center gap-2 ${page === 'scan' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
+                                <i data-lucide="search" className="w-5 h-5"></i> Scan
+                            </button>
+                            <button onClick={() => setPage('history')} className={`flex-1 p-4 flex items-center justify-center gap-2 ${page === 'history' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
+                                <i data-lucide="history" className="w-5 h-5"></i> History ({scannedItems.length})
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="p-4">
+                        {page === 'setup' && (
+                            <div className="max-w-2xl mx-auto">
+                                <div className="bg-white rounded-lg shadow p-6 mb-4">
+                                    <h2 className="text-xl font-bold mb-4">Product Database</h2>
+
+                                    {products.length > 0 && (
+                                        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded flex items-center gap-2">
+                                            <i data-lucide="check-circle" className="w-5 h-5"></i>
+                                            {products.length} products loaded
+                                        </div>
+                                    )}
+
+                                    <div className="mb-4 text-sm text-gray-500 flex items-center gap-2">
+                                        <i data-lucide="clock" className="w-4 h-4"></i>
+                                        Last product sync: {lastSyncTime ? lastSyncTime.toLocaleString() : 'Never'}
+                                    </div>
+
+                                    {offlineWarning && (
+                                        <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded flex gap-2 items-start">
+                                            <i data-lucide="wifi-off" className="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+                                            <span>{offlineWarning}</span>
+                                        </div>
+                                    )}
+
+                                    <button onClick={loadProductsFromCloud} className="w-full mb-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center justify-center gap-2">
+                                        <i data-lucide="refresh-cw" className="w-5 h-5"></i> Reload from Cloud
+                                    </button>
+
+                                    <div className="border-t pt-4">
+                                        <p className="text-sm text-gray-600 mb-3">Or manually upload a CSV file:</p>
+                                        <label className="block">
+                                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 cursor-pointer">
+                                                <div className="flex justify-center mb-3">
+                                                    <i data-lucide="upload" className="w-10 h-10 text-gray-400"></i>
+                                                </div>
+                                                <p className="text-gray-600 text-sm">Click to upload CSV manually</p>
+                                                <input type="file" accept=".csv,.txt" onChange={handleManualUpload} className="hidden" />
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    {error && (
+                                        <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded flex items-center gap-2">
+                                            <i data-lucide="alert-circle" className="w-5 h-5 flex-shrink-0"></i>
+                                            {error}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {products.length > 0 && (
+                                    <div className="bg-white rounded-lg shadow p-6">
+                                        <h3 className="font-bold mb-3">Sample Products:</h3>
+                                        <div className="space-y-2">
+                                            {products.slice(0, 5).map((p, i) => (
+                                                <div key={i} className="text-sm border-l-4 border-blue-500 pl-3 py-2">
+                                                    <div className="font-mono text-gray-600">{p.code}</div>
+                                                    <div className="font-semibold">{p.description}</div>
+                                                    <div className="text-gray-500">Pack Size: {p.packSize} units</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {page === 'scan' && (
+                            <div className="max-w-2xl mx-auto space-y-4">
+                                <div className="bg-white rounded-lg shadow p-6">
+                                    <label className="block text-sm font-semibold mb-2">Barcode / Product Code</label>
+                                    <div className="flex gap-2 mb-3">
+                                        <input
+                                            ref={barcodeInputRef}
+                                            type="text"
+                                            value={barcode}
+                                            onChange={(e) => setBarcode(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && handleBarcodeSubmit()}
+                                            placeholder="Scan or enter barcode"
+                                            className="flex-1 p-3 border-2 border-gray-300 rounded-lg text-lg font-mono"
+                                            autoFocus
+                                        />
+                                        <button onClick={() => handleBarcodeSubmit()} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700" aria-label="Search barcode">
+                                            <i data-lucide="search" className="w-6 h-6"></i>
+                                        </button>
+                                    </div>
+
+                                    {!scanning ? (
+                                        <button onClick={startCamera} className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center justify-center gap-2">
+                                            <i data-lucide="camera" className="w-5 h-5"></i> Use Camera to Scan Barcode
+                                        </button>
+                                    ) : (
+                                        <div>
+                                            <video ref={videoRef} className="w-full rounded-lg mb-2" style={{ height: '240px', objectFit: 'cover' }} />
+                                            <button onClick={stopCamera} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold flex items-center justify-center gap-2">
+                                                <i data-lucide="x" className="w-5 h-5"></i> Stop Camera
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {error && (
+                                    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 flex gap-3">
+                                        <i data-lucide="alert-circle" className="text-yellow-600 flex-shrink-0 w-6 h-6"></i>
+                                        <div className="text-yellow-800">{error}</div>
+                                    </div>
+                                )}
+
+                                {currentProduct && (
+                                    <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6">
+                                        <div className="flex items-start gap-3 mb-4">
+                                            <i data-lucide="package" className="w-12 h-12 text-green-600 flex-shrink-0"></i>
+                                            <div className="flex-1">
+                                                <div className="font-mono text-sm text-gray-600 mb-1">{currentProduct.code}</div>
+                                                <h3 className="text-xl font-bold text-gray-800 mb-2">{currentProduct.description}</h3>
+                                                <div className="text-sm">
+                                                    <span className="text-gray-600">Pack Size:</span>
+                                                    <span className="ml-2 font-semibold">{currentProduct.packSize} units</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="border-t border-green-200 pt-4">
+                                            <label className="block text-sm font-semibold mb-2">Counted Quantity</label>
+                                            <div className="flex gap-2 items-stretch">
+                                                <input
+                                                    ref={quantityInputRef}
+                                                    type="number"
+                                                    value={quantity}
+                                                    onChange={(e) => setQuantity(e.target.value)}
+                                                    onKeyPress={(e) => e.key === 'Enter' && handleAddCount()}
+                                                    placeholder="Enter quantity"
+                                                    className="w-32 p-3 border-2 border-gray-300 rounded-lg text-lg"
+                                                    min="1"
+                                                />
+                                                <button onClick={handleAddCount} className="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                                                    Add
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {scannedItems.length > 0 && (
+                                    <div className="bg-white rounded-lg shadow p-6">
+                                        <h3 className="font-bold mb-3">Last 5 Scanned:</h3>
+                                        <div className="space-y-2">
+                                            {scannedItems.slice(0, 5).map(item => (
+                                                <div key={item.id} className="flex justify-between items-center border-l-4 border-blue-500 pl-3 py-2 bg-gray-50">
+                                                    <div className="flex-1">
+                                                        <div className="font-semibold text-sm">{item.description}</div>
+                                                        <div className="text-xs text-gray-500">{item.code} • {item.timestamp}</div>
+                                                    </div>
+                                                    <div className="text-xl font-bold text-blue-600 mr-2">{item.quantity}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {page === 'history' && (
+                            <div className="max-w-4xl mx-auto space-y-4">
+                                <div className="bg-white rounded-lg shadow p-4">
+                                    <div className="flex flex-col gap-2 mb-4">
+                                        <input
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            placeholder="Search by product or barcode..."
+                                            className="w-full p-3 border-2 border-gray-300 rounded-lg"
+                                        />
+                                        <button onClick={triggerExport} className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-semibold">
+                                            <i data-lucide="download" className="w-5 h-5"></i> Export
+                                        </button>
+                                    </div>
+
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div className="text-sm text-gray-600">Total Items: {filteredItems.length}</div>
+                                        <button onClick={triggerClearAll} className="text-red-600 hover:text-red-700 text-sm flex items-center gap-1 font-semibold">
+                                            <i data-lucide="trash-2" className="w-4 h-4"></i> Clear All
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {filteredItems.map(item => (
+                                        <div key={item.id} className="bg-white rounded-lg shadow p-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="flex-1">
+                                                    <div className="font-mono text-xs text-gray-500 mb-1">{item.code}</div>
+                                                    <div className="font-semibold mb-1">{item.description}</div>
+                                                    <div className="text-sm text-gray-600">Pack Size: {item.packSize} • {item.timestamp}</div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    {editingId === item.id ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="number"
+                                                                value={editQuantity}
+                                                                onChange={(e) => setEditQuantity(e.target.value)}
+                                                                className="w-24 p-2 border-2 border-blue-500 rounded text-center text-lg"
+                                                                autoFocus
+                                                            />
+                                                            <button onClick={() => handleEdit(item.id, editQuantity)} className="p-3 bg-green-600 text-white rounded hover:bg-green-700 flex flex-col items-center gap-1" aria-label="Save quantity">
+                                                                <i data-lucide="check" className="w-5 h-5"></i>
+                                                                <span className="text-xs">Save</span>
+                                                            </button>
+                                                            <button onClick={() => setEditingId(null)} className="p-3 bg-gray-400 text-white rounded hover:bg-gray-500 flex flex-col items-center gap-1" aria-label="Cancel edit">
+                                                                <i data-lucide="x" className="w-5 h-5"></i>
+                                                                <span className="text-xs">Cancel</span>
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="text-2xl font-bold text-blue-600 min-w-[60px] text-right">{item.quantity}</div>
+                                                            <button
+                                                                onClick={() => { setEditingId(item.id); setEditQuantity(item.quantity.toString()); }}
+                                                                className="p-3 text-blue-600 hover:bg-blue-50 rounded flex flex-col items-center gap-1"
+                                                                aria-label="Edit quantity"
+                                                            >
+                                                                <i data-lucide="edit-2" className="w-5 h-5"></i>
+                                                                <span className="text-xs">Edit</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => triggerDelete(item.id)}
+                                                                className="p-3 text-red-600 hover:bg-red-50 rounded flex flex-col items-center gap-1"
+                                                                aria-label="Delete entry"
+                                                            >
+                                                                <i data-lucide="trash-2" className="w-5 h-5"></i>
+                                                                <span className="text-xs">Delete</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {filteredItems.length === 0 && (
+                                        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">No items scanned yet</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {modal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+                                {modal.type === 'clear' && (
+                                    <>
+                                        <h3 className="text-xl font-bold mb-4 text-gray-900">Clear All Data?</h3>
+                                        <p className="text-gray-600 mb-6">A backup file has been automatically downloaded. Are you sure you want to clear all scanned items? This cannot be undone.</p>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setModal(null)} className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold">Cancel</button>
+                                            <button onClick={confirmClearAll} className="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">Clear All</button>
+                                        </div>
+                                    </>
+                                )}
+                                {modal.type === 'export' && (
+                                    <>
+                                        <h3 className="text-xl font-bold mb-4 text-gray-900">Export Data?</h3>
+                                        <p className="text-gray-600 mb-6">This will download a text file with {scannedItems.length} scanned items.</p>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setModal(null)} className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold">Cancel</button>
+                                            <button onClick={confirmExport} className="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">Download</button>
+                                        </div>
+                                    </>
+                                )}
+                                {modal.type === 'delete' && (
+                                    <>
+                                        <h3 className="text-xl font-bold mb-4 text-gray-900">Delete Entry?</h3>
+                                        <p className="text-gray-600 mb-6">Are you sure you want to delete this scanned item?</p>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setModal(null)} className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold">Cancel</button>
+                                            <button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">Delete</button>
+                                        </div>
+                                    </>
+                                )}
+                                {modal.type === 'alert' && (
+                                    <>
+                                        <h3 className="text-xl font-bold mb-4 text-gray-900">Notice</h3>
+                                        <p className="text-gray-600 mb-6">{modal.message}</p>
+                                        <button onClick={() => setModal(null)} className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">OK</button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<StockTakeApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
