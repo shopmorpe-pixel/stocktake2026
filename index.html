@@ -549,19 +549,20 @@
                                             className="min-w-0 w-full sm:flex-1 p-3 border-2 border-gray-300 rounded-lg text-lg font-mono"
                                             autoFocus
                                         />
-                                        <button onClick={() => handleBarcodeSubmit()} className="flex-1 sm:flex-none px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700" aria-label="Search barcode">
+                                        <button onClick={() => handleBarcodeSubmit()} className="flex-1 sm:flex-none min-w-[96px] px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2" aria-label="Search barcode">
                                             <i data-lucide="search" className="w-6 h-6"></i>
+                                            <span>Code</span>
                                         </button>
                                         <button
                                             onClick={() => {
                                                 setShowNameSearch(true);
                                                 setTimeout(() => nameSearchInputRef.current?.focus(), 100);
                                             }}
-                                            className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700"
+                                            className="flex-1 sm:flex-none min-w-[96px] px-4 py-3 bg-amber-500 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-amber-600"
                                             title="Search by Product Name"
                                         >
                                             <i data-lucide="search" className="w-5 h-5"></i>
-                                            <span className="hidden sm:inline">Find Item</span>
+                                            <span>Item</span>
                                         </button>
                                     </div>
 
@@ -667,38 +668,38 @@
                                 <div className="space-y-2">
                                     {filteredItems.map(item => (
                                         <div key={item.id} className="bg-white rounded-lg shadow p-4">
-                                            <div className="flex flex-col sm:flex-row items-start gap-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                                                 <div className="flex-1">
                                                     <div className="font-mono text-xs text-gray-500 mb-1">{item.code}</div>
                                                     <div className="font-semibold mb-1">{item.description}</div>
                                                     <div className="text-sm text-gray-600">Pack Size: {item.packSize} • {item.timestamp}</div>
                                                 </div>
 
-                                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                                <div className="flex items-center justify-start sm:justify-end gap-3 border-t sm:border-t-0 pt-3 sm:pt-0">
                                                     {editingId === item.id ? (
-                                                        <div className="flex flex-wrap items-center justify-end gap-2">
+                                                        <div className="flex items-center gap-2 w-full sm:w-auto">
                                                             <input
                                                                 type="number"
                                                                 value={editQuantity}
                                                                 onChange={(e) => setEditQuantity(e.target.value)}
-                                                                className="w-24 p-2 border-2 border-blue-500 rounded text-center text-lg"
+                                                                className="w-20 p-2 border-2 border-blue-500 rounded text-center text-lg"
                                                                 autoFocus
                                                             />
-                                                            <button onClick={() => handleEdit(item.id, editQuantity)} className="p-3 bg-green-600 text-white rounded hover:bg-green-700 flex flex-col items-center gap-1" aria-label="Save quantity">
+                                                            <button onClick={() => handleEdit(item.id, editQuantity)} className="min-w-[64px] p-2 bg-green-600 text-white rounded hover:bg-green-700 flex flex-col items-center gap-1" aria-label="Save quantity">
                                                                 <i data-lucide="check" className="w-5 h-5"></i>
                                                                 <span className="text-xs">Save</span>
                                                             </button>
-                                                            <button onClick={() => setEditingId(null)} className="p-3 bg-gray-400 text-white rounded hover:bg-gray-500 flex flex-col items-center gap-1" aria-label="Cancel edit">
+                                                            <button onClick={() => setEditingId(null)} className="min-w-[64px] p-2 bg-gray-400 text-white rounded hover:bg-gray-500 flex flex-col items-center gap-1" aria-label="Cancel edit">
                                                                 <i data-lucide="x" className="w-5 h-5"></i>
                                                                 <span className="text-xs">Cancel</span>
                                                             </button>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="text-2xl font-bold text-blue-600 min-w-[60px] text-right">{item.quantity}</div>
+                                                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                            <div className="text-2xl font-bold text-blue-600 min-w-[56px] text-left sm:text-right">{item.quantity}</div>
                                                             <button
                                                                 onClick={() => { setEditingId(item.id); setEditQuantity(item.quantity.toString()); }}
-                                                                className="p-3 text-blue-600 hover:bg-blue-50 rounded flex flex-col items-center gap-1"
+                                                                className="min-w-[64px] p-2 text-blue-600 hover:bg-blue-50 rounded flex flex-col items-center gap-1"
                                                                 aria-label="Edit quantity"
                                                             >
                                                                 <i data-lucide="edit-2" className="w-5 h-5"></i>
@@ -706,7 +707,7 @@
                                                             </button>
                                                             <button
                                                                 onClick={() => triggerDelete(item.id)}
-                                                                className="p-3 text-red-600 hover:bg-red-50 rounded flex flex-col items-center gap-1"
+                                                                className="min-w-[64px] p-2 text-red-600 hover:bg-red-50 rounded flex flex-col items-center gap-1"
                                                                 aria-label="Delete entry"
                                                             >
                                                                 <i data-lucide="trash-2" className="w-5 h-5"></i>
