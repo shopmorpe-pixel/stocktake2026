@@ -7,9 +7,8 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <script src="https://unpkg.com/@zxing/library@0.20.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
@@ -20,20 +19,57 @@
 
         const CLOUD_CSV_URL = 'https://gist.githubusercontent.com/shopmorpe-pixel/12efae033e5246fed3ab8a404778b327/raw/update2026';
 
-        const normalizeCode = (code) => (code || '').replace(/^0/, '');
+        const normalizeCode = (code) => String(code || '').trim().replace(/^0+/, '') || '0';
+
+        const Icon = ({ name, size = 20, className = '' }) => {
+            const common = {
+                width: size,
+                height: size,
+                viewBox: '0 0 24 24',
+                fill: 'none',
+                stroke: 'currentColor',
+                strokeWidth: 2,
+                strokeLinecap: 'round',
+                strokeLinejoin: 'round',
+                className
+            };
+            const paths = {
+                upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></>,
+                download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
+                search: <><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></>,
+                camera: <><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></>,
+                x: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
+                check: <polyline points="20 6 9 17 4 12" />,
+                'check-circle': <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>,
+                'alert-circle': <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>,
+                'trash-2': <><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></>,
+                package: <><path d="M16.5 9.4 7.5 4.21" /><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></>,
+                loader: <><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" /></>,
+                history: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
+                'refresh-cw': <><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></>,
+                clock: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
+                'wifi-off': <><line x1="1" y1="1" x2="23" y2="23" /><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" /><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" /><path d="M10.71 5.05A16 16 0 0 1 22.58 9" /><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></>,
+                'edit-2': <><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /><line x1="15" y1="5" x2="19" y2="9" /></>
+            };
+            return <svg {...common}>{paths[name] || null}</svg>;
+        };
 
         function StockTakeApp() {
             const [page, setPage] = useState('setup');
             const [products, setProducts] = useState([]);
             const [scannedItems, setScannedItems] = useState([]);
             const [barcode, setBarcode] = useState('');
-            const [quantity, setQuantity] = useState('');
+            const [quantity, setQuantity] = useState('1');
             const [currentProduct, setCurrentProduct] = useState(null);
             const [editingId, setEditingId] = useState(null);
             const [editQuantity, setEditQuantity] = useState('');
             const [searchTerm, setSearchTerm] = useState('');
             const [error, setError] = useState('');
             const [scanning, setScanning] = useState(false);
+            const [scanStatus, setScanStatus] = useState('');
+            const [torchOn, setTorchOn] = useState(false);
+            const [torchSupported, setTorchSupported] = useState(false);
+            const [keepCameraOpen, setKeepCameraOpen] = useState(false);
             const [loading, setLoading] = useState(true);
             const [loadingMessage, setLoadingMessage] = useState('Loading products from cloud...');
             const [lastSyncTime, setLastSyncTime] = useState(null);
@@ -47,26 +83,32 @@
             const nameSearchInputRef = useRef(null);
             const videoRef = useRef(null);
             const streamRef = useRef(null);
+            const trackRef = useRef(null);
             const codeReaderRef = useRef(null);
             const lastScanRef = useRef({ code: '', time: 0 });
+            const pendingReadRef = useRef({ code: '', count: 0 });
+            const keepCameraOpenRef = useRef(false);
+
+            useEffect(() => {
+                keepCameraOpenRef.current = keepCameraOpen;
+            }, [keepCameraOpen]);
 
             const productMap = useMemo(() => {
                 const map = new Map();
                 products.forEach((p) => {
-                    map.set(normalizeCode(p.code), p);
+                    const code = normalizeCode(p.code);
+                    if (code !== '0') map.set(code, p);
                 });
                 return map;
             }, [products]);
 
             useEffect(() => {
-                if (window.lucide) {
-                    window.lucide.createIcons();
+                try {
+                    const savedScans = localStorage.getItem('stocktake_scans');
+                    if (savedScans) setScannedItems(JSON.parse(savedScans));
+                } catch (e) {
+                    setError('Saved scan data could not be loaded. You can continue with a new count.');
                 }
-            }, [page, scannedItems, modal, currentProduct, error, showNameSearch]);
-
-            useEffect(() => {
-                const savedScans = localStorage.getItem('stocktake_scans');
-                if (savedScans) setScannedItems(JSON.parse(savedScans));
 
                 const savedProducts = localStorage.getItem('stocktake_products');
                 const lastUpdate = localStorage.getItem('stocktake_last_update');
@@ -77,7 +119,11 @@
 
                 if (!navigator.onLine) {
                     if (savedProducts) {
-                        setProducts(JSON.parse(savedProducts));
+                        try {
+                            setProducts(JSON.parse(savedProducts));
+                        } catch (e) {
+                            setError('Cached product data is damaged. Upload a CSV or reconnect to reload it.');
+                        }
                         setLoading(false);
                         setPage('scan');
                         setOfflineWarning('You are offline — using cached product data, which may be out of date.');
@@ -86,9 +132,13 @@
                         setError('You are offline and no product data is cached on this device yet.');
                     }
                 } else if (savedProducts && lastUpdate && (now - parseInt(lastUpdate)) < oneHour) {
-                    setProducts(JSON.parse(savedProducts));
-                    setLoading(false);
-                    setPage('scan');
+                    try {
+                        setProducts(JSON.parse(savedProducts));
+                        setLoading(false);
+                        setPage('scan');
+                    } catch (e) {
+                        loadProductsFromCloud();
+                    }
                 } else {
                     loadProductsFromCloud();
                 }
@@ -112,9 +162,11 @@
                     skipEmptyLines: true,
                     step: (results) => {
                         const row = results.data;
-                        if (row.length >= 3) {
+                        const firstCell = String(row[0] || '').trim();
+                        const header = firstCell.toLowerCase();
+                        if (row.length >= 3 && !header.includes('barcode') && !header.includes('code')) {
                             data.push({
-                                code: String(row[0]).trim(),
+                                code: firstCell,
                                 packSize: String(row[1]).trim(),
                                 description: row.slice(2).join(',').trim()
                             });
@@ -132,7 +184,13 @@
                 if (!navigator.onLine) {
                     const savedProducts = localStorage.getItem('stocktake_products');
                     if (savedProducts) {
-                        setProducts(JSON.parse(savedProducts));
+                        try {
+                            setProducts(JSON.parse(savedProducts));
+                        } catch (e) {
+                            setError('Cached product data is damaged. Upload a CSV or reconnect to reload it.');
+                            setLoading(false);
+                            return;
+                        }
                         setLoading(false);
                         setPage('scan');
                         setOfflineWarning('You are offline — using cached product data, which may be out of date.');
@@ -216,33 +274,86 @@
                 try {
                     setScanning(true);
                     setError('');
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    setScanStatus('Starting camera...');
+                    pendingReadRef.current = { code: '', count: 0 };
+                    const constraints = {
+                        audio: false,
+                        video: {
+                            facingMode: { ideal: 'environment' },
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 }
+                        }
+                    };
+                    let stream;
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    } catch (firstError) {
+                        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'environment' } });
+                    }
 
                     if (videoRef.current) {
                         videoRef.current.srcObject = stream;
                         streamRef.current = stream;
+                        trackRef.current = stream.getVideoTracks()[0] || null;
+                        try {
+                            const capabilities = trackRef.current && trackRef.current.getCapabilities();
+                            setTorchSupported(Boolean(capabilities && capabilities.torch));
+                            if (capabilities && capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                                await trackRef.current.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                            }
+                        } catch (capabilityError) {}
                         await videoRef.current.play();
 
                         const codeReader = new ZXing.BrowserMultiFormatReader();
                         codeReaderRef.current = codeReader;
 
-                        codeReader.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
+                        const onDecode = (result, err) => {
                             if (result) {
                                 const scannedCode = result.getText();
                                 const now = Date.now();
+                                if (pendingReadRef.current.code === scannedCode) {
+                                    pendingReadRef.current.count += 1;
+                                } else {
+                                    pendingReadRef.current = { code: scannedCode, count: 1 };
+                                }
+                                if (pendingReadRef.current.count < 2) {
+                                    setScanStatus('Confirming... hold steady');
+                                    return;
+                                }
+                                pendingReadRef.current = { code: '', count: 0 };
                                 if (scannedCode === lastScanRef.current.code && (now - lastScanRef.current.time) < 1500) {
                                     return;
                                 }
                                 lastScanRef.current = { code: scannedCode, time: now };
                                 setBarcode(scannedCode);
-                                stopCamera();
+                                setScanStatus('Barcode captured');
+                                if (!keepCameraOpenRef.current) stopCamera();
                                 handleBarcodeSubmit(scannedCode);
                             }
-                        });
+                        };
+                        if (typeof codeReader.decodeFromStream === 'function') {
+                            codeReader.decodeFromStream(stream, videoRef.current, onDecode);
+                        } else if (typeof codeReader.decodeFromVideoElement === 'function') {
+                            codeReader.decodeFromVideoElement(videoRef.current, onDecode);
+                        } else {
+                            codeReader.decodeFromVideoDevice(undefined, videoRef.current, onDecode);
+                        }
                     }
                 } catch (err) {
                     setError('Camera access denied. Please enable camera permissions or enter barcode manually.');
                     setScanning(false);
+                    setScanStatus('');
+                }
+            };
+
+            const applyTorch = async (enabled) => {
+                if (!trackRef.current) return;
+                try {
+                    await trackRef.current.applyConstraints({ advanced: [{ torch: enabled }] });
+                    setTorchOn(enabled);
+                } catch (e) {
+                    setTorchSupported(false);
+                    setError('Torch is not available on this camera.');
                 }
             };
 
@@ -251,10 +362,13 @@
                     streamRef.current.getTracks().forEach(track => track.stop());
                     streamRef.current = null;
                 }
+                trackRef.current = null;
                 if (codeReaderRef.current) {
-                    codeReaderRef.current.reset();
+                    try { codeReaderRef.current.reset(); } catch (e) {}
                 }
                 setScanning(false);
+                setScanStatus('');
+                setTorchOn(false);
             };
 
             const playBeep = () => {
@@ -305,43 +419,67 @@
                 }
             };
 
+            const persistScans = (items) => {
+                setScannedItems(items);
+                try {
+                    localStorage.setItem('stocktake_scans', JSON.stringify(items));
+                } catch (e) {
+                    setError('Could not save counts to device storage.');
+                }
+            };
+
+            const exportStamp = () => {
+                const d = new Date();
+                const p = (n) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+            };
+
+            const commitAddCount = (qty) => {
+                if (!currentProduct) return;
+                const normalizedCode = normalizeCode(barcode) || normalizeCode(currentProduct.code);
+                const existing = scannedItems.find((item) => normalizeCode(item.code) === normalizedCode);
+                if (existing) {
+                    const updated = scannedItems.map((item) =>
+                        item.id === existing.id
+                            ? { ...item, quantity: item.quantity + qty, timestamp: new Date().toLocaleTimeString() }
+                            : item
+                    );
+                    persistScans(updated);
+                } else {
+                    const newItem = {
+                        id: Date.now(),
+                        code: normalizedCode,
+                        description: currentProduct.description,
+                        packSize: currentProduct.packSize,
+                        quantity: qty,
+                        timestamp: new Date().toLocaleTimeString()
+                    };
+                    persistScans([newItem, ...scannedItems]);
+                }
+                setBarcode('');
+                setQuantity('1');
+                setCurrentProduct(null);
+                setError('');
+                if (barcodeInputRef.current) barcodeInputRef.current.focus();
+            };
+
             const handleAddCount = () => {
                 if (!currentProduct) {
                     setError('Please scan a product first');
                     return;
                 }
 
-                const qty = parseInt(quantity);
+                const qty = parseInt(quantity, 10);
                 if (!quantity || isNaN(qty) || qty <= 0) {
                     setError('Please enter a valid quantity');
                     return;
                 }
 
                 if (qty > 9999) {
-                    if (!confirm(`Are you sure the quantity is ${qty}? This seems unusually high.`)) {
-                        return;
-                    }
+                    setModal({ type: 'high_qty', qty });
+                    return;
                 }
-
-                const newItem = {
-                    id: Date.now(),
-                    code: barcode,
-                    description: currentProduct.description,
-                    packSize: currentProduct.packSize,
-                    quantity: qty,
-                    timestamp: new Date().toLocaleTimeString()
-                };
-
-                const updated = [newItem, ...scannedItems];
-                setScannedItems(updated);
-                localStorage.setItem('stocktake_scans', JSON.stringify(updated));
-
-                setBarcode('');
-                setQuantity('');
-                setCurrentProduct(null);
-                setError('');
-
-                if (barcodeInputRef.current) barcodeInputRef.current.focus();
+                commitAddCount(qty);
             };
 
             const handleEdit = (id, newQty) => {
@@ -351,8 +489,7 @@
                 const updated = scannedItems.map(item =>
                     item.id === id ? { ...item, quantity: qty } : item
                 );
-                setScannedItems(updated);
-                localStorage.setItem('stocktake_scans', JSON.stringify(updated));
+                persistScans(updated);
                 setEditingId(null);
             };
 
@@ -361,8 +498,7 @@
             const confirmDelete = () => {
                 if (modal && modal.id) {
                     const updated = scannedItems.filter(item => item.id !== modal.id);
-                    setScannedItems(updated);
-                    localStorage.setItem('stocktake_scans', JSON.stringify(updated));
+                    persistScans(updated);
                     setModal(null);
                 }
             };
@@ -381,7 +517,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `stocktake_${new Date().toISOString().split('T')[0]}.txt`;
+                a.download = `stocktake_${exportStamp()}.txt`;
                 a.click();
                 URL.revokeObjectURL(url);
                 setModal(null);
@@ -394,7 +530,7 @@
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `stocktake_backup_${new Date().toISOString().split('T')[0]}.txt`;
+                    a.download = `stocktake_backup_${exportStamp()}.txt`;
                     a.click();
                     URL.revokeObjectURL(url);
                 }
@@ -435,7 +571,7 @@
                     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                         <div className="text-center">
                             <div className="mb-4">
-                                <i data-lucide="loader" className="w-16 h-16 text-blue-600 mx-auto animate-spin"></i>
+                                <Icon name="loader" size={64} className="w-16 h-16 text-blue-600 mx-auto animate-spin" />
                             </div>
                             <h2 className="text-2xl font-bold text-gray-800 mb-2">Stock Take Scanner</h2>
                             <p className="text-gray-600">{loadingMessage}</p>
@@ -456,13 +592,13 @@
                     <div className="bg-white border-b sticky top-0 z-10">
                         <div className="grid grid-cols-3">
                             <button onClick={() => setPage('setup')} className={`min-w-0 px-1 py-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base whitespace-nowrap ${page === 'setup' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
-                                <i data-lucide="upload" className="w-5 h-5"></i> Setup
+                                <Icon name="upload" size={20} className="w-5 h-5" /> Setup
                             </button>
                             <button onClick={() => setPage('scan')} className={`min-w-0 px-1 py-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base whitespace-nowrap ${page === 'scan' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
-                                <i data-lucide="search" className="w-5 h-5"></i> Scan
+                                <Icon name="search" size={20} className="w-5 h-5" /> Scan
                             </button>
                             <button onClick={() => setPage('history')} className={`min-w-0 px-1 py-3 sm:p-4 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base whitespace-nowrap ${page === 'history' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`}>
-                                <i data-lucide="history" className="w-5 h-5"></i> History ({scannedItems.length})
+                                <Icon name="history" size={20} className="w-5 h-5" /> History ({scannedItems.length})
                             </button>
                         </div>
                     </div>
@@ -475,25 +611,25 @@
 
                                     {products.length > 0 && (
                                         <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded flex items-center gap-2">
-                                            <i data-lucide="check-circle" className="w-5 h-5"></i>
+                                            <Icon name="check-circle" size={20} className="w-5 h-5" />
                                             {products.length} products loaded
                                         </div>
                                     )}
 
                                     <div className="mb-4 text-sm text-gray-500 flex items-center gap-2">
-                                        <i data-lucide="clock" className="w-4 h-4"></i>
+                                        <Icon name="clock" size={16} className="w-4 h-4" />
                                         Last product sync: {lastSyncTime ? lastSyncTime.toLocaleString() : 'Never'}
                                     </div>
 
                                     {offlineWarning && (
                                         <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded flex gap-2 items-start">
-                                            <i data-lucide="wifi-off" className="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+                                            <Icon name="wifi-off" size={20} className="w-5 h-5 flex-shrink-0 mt-0.5" />
                                             <span>{offlineWarning}</span>
                                         </div>
                                     )}
 
                                     <button onClick={loadProductsFromCloud} className="w-full mb-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center justify-center gap-2">
-                                        <i data-lucide="refresh-cw" className="w-5 h-5"></i> Reload from Cloud
+                                        <Icon name="refresh-cw" size={20} className="w-5 h-5" /> Reload from Cloud
                                     </button>
 
                                     <div className="border-t pt-4">
@@ -501,7 +637,7 @@
                                         <label className="block">
                                             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 cursor-pointer">
                                                 <div className="flex justify-center mb-3">
-                                                    <i data-lucide="upload" className="w-10 h-10 text-gray-400"></i>
+                                                    <Icon name="upload" size={40} className="w-10 h-10 text-gray-400" />
                                                 </div>
                                                 <p className="text-gray-600 text-sm">Click to upload CSV manually</p>
                                                 <input type="file" accept=".csv,.txt" onChange={handleManualUpload} className="hidden" />
@@ -511,7 +647,7 @@
 
                                     {error && (
                                         <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded flex items-center gap-2">
-                                            <i data-lucide="alert-circle" className="w-5 h-5 flex-shrink-0"></i>
+                                            <Icon name="alert-circle" size={20} className="w-5 h-5 flex-shrink-0" />
                                             {error}
                                         </div>
                                     )}
@@ -550,7 +686,7 @@
                                             autoFocus
                                         />
                                         <button onClick={() => handleBarcodeSubmit()} className="flex-1 sm:flex-none min-w-[96px] px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2" aria-label="Search barcode">
-                                            <i data-lucide="search" className="w-6 h-6"></i>
+                                            <Icon name="search" size={24} className="w-6 h-6" />
                                             <span>Code</span>
                                         </button>
                                         <button
@@ -561,20 +697,37 @@
                                             className="flex-1 sm:flex-none min-w-[96px] px-4 py-3 bg-amber-500 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-amber-600"
                                             title="Search by Product Name"
                                         >
-                                            <i data-lucide="search" className="w-5 h-5"></i>
+                                            <Icon name="search" size={20} className="w-5 h-5" />
                                             <span>Item</span>
                                         </button>
                                     </div>
+                                    <label className="flex items-center gap-2 mb-3 text-sm text-gray-600">
+                                        <input type="checkbox" checked={keepCameraOpen} onChange={(e) => setKeepCameraOpen(e.target.checked)} />
+                                        Keep camera open after a scan
+                                    </label>
 
                                     {!scanning ? (
                                         <button onClick={startCamera} className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center justify-center gap-2">
-                                            <i data-lucide="camera" className="w-5 h-5"></i> Use Camera to Scan Barcode
+                                            <Icon name="camera" size={20} className="w-5 h-5" /> Use Camera to Scan Barcode
                                         </button>
                                     ) : (
                                         <div>
-                                            <video ref={videoRef} className="w-full rounded-lg mb-2" style={{ height: '240px', objectFit: 'cover' }} />
+                                            <div className="relative mb-2">
+                                                <video ref={videoRef} playsInline muted autoPlay className="w-full rounded-lg" style={{ height: 'min(42vh, 320px)', objectFit: 'cover', background: '#0f172a' }} />
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="w-[78%] h-[30%] border-2 border-blue-400 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
+                                                </div>
+                                                <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+                                                    <span className="text-xs text-white bg-black/50 px-2 py-1 rounded">{scanStatus}</span>
+                                                    {torchSupported && (
+                                                        <button type="button" onClick={() => applyTorch(!torchOn)} className={`p-2 rounded text-white ${torchOn ? 'bg-amber-500' : 'bg-black/50'}`} aria-label="Toggle torch">
+                                                            <span aria-hidden="true">{torchOn ? 'Light off' : 'Light on'}</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
                                             <button onClick={stopCamera} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold flex items-center justify-center gap-2">
-                                                <i data-lucide="x" className="w-5 h-5"></i> Stop Camera
+                                                <Icon name="x" size={20} className="w-5 h-5" /> Stop Camera
                                             </button>
                                         </div>
                                     )}
@@ -582,7 +735,7 @@
 
                                 {error && (
                                     <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 flex gap-3">
-                                        <i data-lucide="alert-circle" className="text-yellow-600 flex-shrink-0 w-6 h-6"></i>
+                                        <Icon name="alert-circle" size={24} className="text-yellow-600 flex-shrink-0 w-6 h-6" />
                                         <div className="text-yellow-800">{error}</div>
                                     </div>
                                 )}
@@ -590,7 +743,7 @@
                                 {currentProduct && (
                                     <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6">
                                         <div className="flex items-start gap-3 mb-4">
-                                            <i data-lucide="package" className="w-12 h-12 text-green-600 flex-shrink-0"></i>
+                                            <Icon name="package" size={48} className="w-12 h-12 text-green-600 flex-shrink-0" />
                                             <div className="flex-1">
                                                 <div className="font-mono text-sm text-gray-600 mb-1">{currentProduct.code}</div>
                                                 <h3 className="text-xl font-bold text-gray-800 mb-2">{currentProduct.description}</h3>
@@ -653,14 +806,14 @@
                                             className="w-full p-3 border-2 border-gray-300 rounded-lg"
                                         />
                                         <button onClick={triggerExport} className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-semibold">
-                                            <i data-lucide="download" className="w-5 h-5"></i> Export
+                                            <Icon name="download" size={20} className="w-5 h-5" /> Export
                                         </button>
                                     </div>
 
                                     <div className="flex justify-between items-center mb-4">
                                         <div className="text-sm text-gray-600">Total Items: {filteredItems.length}</div>
                                         <button onClick={triggerClearAll} className="text-red-600 hover:text-red-700 text-sm flex items-center gap-1 font-semibold">
-                                            <i data-lucide="trash-2" className="w-4 h-4"></i> Clear All
+                                            <Icon name="trash-2" size={16} className="w-4 h-4" /> Clear All
                                         </button>
                                     </div>
                                 </div>
@@ -686,11 +839,11 @@
                                                                 autoFocus
                                                             />
                                                             <button onClick={() => handleEdit(item.id, editQuantity)} className="min-w-[64px] p-2 bg-green-600 text-white rounded hover:bg-green-700 flex flex-col items-center gap-1" aria-label="Save quantity">
-                                                                <i data-lucide="check" className="w-5 h-5"></i>
+                                                                <Icon name="check" size={20} className="w-5 h-5" />
                                                                 <span className="text-xs">Save</span>
                                                             </button>
                                                             <button onClick={() => setEditingId(null)} className="min-w-[64px] p-2 bg-gray-400 text-white rounded hover:bg-gray-500 flex flex-col items-center gap-1" aria-label="Cancel edit">
-                                                                <i data-lucide="x" className="w-5 h-5"></i>
+                                                                <Icon name="x" size={20} className="w-5 h-5" />
                                                                 <span className="text-xs">Cancel</span>
                                                             </button>
                                                         </div>
@@ -702,7 +855,7 @@
                                                                 className="min-w-[64px] p-2 text-blue-600 hover:bg-blue-50 rounded flex flex-col items-center gap-1"
                                                                 aria-label="Edit quantity"
                                                             >
-                                                                <i data-lucide="edit-2" className="w-5 h-5"></i>
+                                                                <Icon name="edit-2" size={20} className="w-5 h-5" />
                                                                 <span className="text-xs">Edit</span>
                                                             </button>
                                                             <button
@@ -710,7 +863,7 @@
                                                                 className="min-w-[64px] p-2 text-red-600 hover:bg-red-50 rounded flex flex-col items-center gap-1"
                                                                 aria-label="Delete entry"
                                                             >
-                                                                <i data-lucide="trash-2" className="w-5 h-5"></i>
+                                                                <Icon name="trash-2" size={20} className="w-5 h-5" />
                                                                 <span className="text-xs">Delete</span>
                                                             </button>
                                                         </div>
@@ -768,6 +921,16 @@
                                         <button onClick={() => setModal(null)} className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">OK</button>
                                     </>
                                 )}
+                                {modal.type === 'high_qty' && (
+                                    <>
+                                        <h3 className="text-xl font-bold mb-4 text-gray-900">High quantity</h3>
+                                        <p className="text-gray-600 mb-6">Quantity {modal.qty} looks unusually high. Add it anyway?</p>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setModal(null)} className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold">Cancel</button>
+                                            <button onClick={() => { commitAddCount(modal.qty); setModal(null); }} className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Add anyway</button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
@@ -785,7 +948,7 @@
                                         className="text-gray-500 hover:text-gray-800"
                                         aria-label="Close name search"
                                     >
-                                        <i data-lucide="x" className="w-6 h-6"></i>
+                                        <Icon name="x" size={24} className="w-6 h-6" />
                                     </button>
                                 </div>
                                 <div className="p-4 border-b">
