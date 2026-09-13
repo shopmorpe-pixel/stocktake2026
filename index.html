@@ -59,7 +59,7 @@
             const [products, setProducts] = useState([]);
             const [scannedItems, setScannedItems] = useState([]);
             const [barcode, setBarcode] = useState('');
-            const [quantity, setQuantity] = useState('1');
+            const [quantity, setQuantity] = useState('');
             const [currentProduct, setCurrentProduct] = useState(null);
             const [editingId, setEditingId] = useState(null);
             const [editQuantity, setEditQuantity] = useState('');
@@ -457,7 +457,7 @@
                     persistScans([newItem, ...scannedItems]);
                 }
                 setBarcode('');
-                setQuantity('1');
+                setQuantity('');
                 setCurrentProduct(null);
                 setError('');
                 if (barcodeInputRef.current) barcodeInputRef.current.focus();
