@@ -415,7 +415,7 @@
 
                 const existing = scannedItems.find(item => item.code === barcodeToSearch);
                 if (existing) {
-                    setError(`Warning: ${product.description} already counted (${existing.quantity} units)`);
+                    setError(`Warning: ${product.description} has already been scanned`);
                 }
             };
 
@@ -437,25 +437,15 @@
             const commitAddCount = (qty) => {
                 if (!currentProduct) return;
                 const normalizedCode = normalizeCode(barcode) || normalizeCode(currentProduct.code);
-                const existing = scannedItems.find((item) => normalizeCode(item.code) === normalizedCode);
-                if (existing) {
-                    const updated = scannedItems.map((item) =>
-                        item.id === existing.id
-                            ? { ...item, quantity: item.quantity + qty, timestamp: new Date().toLocaleTimeString() }
-                            : item
-                    );
-                    persistScans(updated);
-                } else {
-                    const newItem = {
-                        id: Date.now(),
-                        code: normalizedCode,
-                        description: currentProduct.description,
-                        packSize: currentProduct.packSize,
-                        quantity: qty,
-                        timestamp: new Date().toLocaleTimeString()
-                    };
-                    persistScans([newItem, ...scannedItems]);
-                }
+                const newItem = {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    code: normalizedCode,
+                    description: currentProduct.description,
+                    packSize: currentProduct.packSize,
+                    quantity: qty,
+                    timestamp: new Date().toLocaleTimeString()
+                };
+                persistScans([newItem, ...scannedItems]);
                 setBarcode('');
                 setQuantity('');
                 setCurrentProduct(null);
