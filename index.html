@@ -20,6 +20,7 @@
         const CLOUD_CSV_URL = 'https://gist.githubusercontent.com/shopmorpe-pixel/12efae033e5246fed3ab8a404778b327/raw/update2026';
 
         const normalizeCode = (code) => String(code || '').trim().replace(/^0+/, '') || '0';
+        const isWeightProduct = (product) => /p\s*\/\s*kg/i.test(String(product?.description || ''));
 
         const Icon = ({ name, size = 20, className = '' }) => {
             const common = {
@@ -450,7 +451,13 @@
                 setQuantity('');
                 setCurrentProduct(null);
                 setError('');
-                if (barcodeInputRef.current) barcodeInputRef.current.focus();
+                if (keepCameraOpenRef.current) {
+                    if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.blur();
+                    }
+                } else if (barcodeInputRef.current) {
+                    barcodeInputRef.current.focus();
+                }
             };
 
             const handleAddCount = () => {
@@ -459,8 +466,9 @@
                     return;
                 }
 
-                const qty = parseInt(quantity, 10);
-                if (!quantity || isNaN(qty) || qty <= 0) {
+                const allowsDecimal = isWeightProduct(currentProduct);
+                const qty = parseFloat(quantity);
+                if (!quantity || isNaN(qty) || qty <= 0 || (!allowsDecimal && !Number.isInteger(qty))) {
                     setError('Please enter a valid quantity');
                     return;
                 }
@@ -473,8 +481,10 @@
             };
 
             const handleEdit = (id, newQty) => {
-                const qty = parseInt(newQty);
-                if (isNaN(qty) || qty <= 0) return;
+                const item = scannedItems.find((scannedItem) => scannedItem.id === id);
+                const allowsDecimal = isWeightProduct(item);
+                const qty = parseFloat(newQty);
+                if (isNaN(qty) || qty <= 0 || (!allowsDecimal && !Number.isInteger(qty))) return;
 
                 const updated = scannedItems.map(item =>
                     item.id === id ? { ...item, quantity: qty } : item
@@ -755,7 +765,8 @@
                                                     onKeyPress={(e) => e.key === 'Enter' && handleAddCount()}
                                                     placeholder="Enter quantity"
                                                     className="w-32 p-3 border-2 border-gray-300 rounded-lg text-lg"
-                                                    min="1"
+                                                    min={isWeightProduct(currentProduct) ? '0.01' : '1'}
+                                                    step={isWeightProduct(currentProduct) ? 'any' : '1'}
                                                 />
                                                 <button onClick={handleAddCount} className="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
                                                     Add
@@ -826,6 +837,8 @@
                                                                 value={editQuantity}
                                                                 onChange={(e) => setEditQuantity(e.target.value)}
                                                                 className="w-20 p-2 border-2 border-blue-500 rounded text-center text-lg"
+                                                                min={isWeightProduct(item) ? '0.01' : '1'}
+                                                                step={isWeightProduct(item) ? 'any' : '1'}
                                                                 autoFocus
                                                             />
                                                             <button onClick={() => handleEdit(item.id, editQuantity)} className="min-w-[64px] p-2 bg-green-600 text-white rounded hover:bg-green-700 flex flex-col items-center gap-1" aria-label="Save quantity">
